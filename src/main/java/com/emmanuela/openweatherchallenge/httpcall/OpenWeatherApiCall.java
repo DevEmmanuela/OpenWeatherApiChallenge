@@ -5,9 +5,11 @@ import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.handler.timeout.WriteTimeoutHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -26,13 +28,15 @@ public class OpenWeatherApiCall {
 
     public String openWeatherApi(String city){
 
+        log.info("Running webclient ....");
+
         try{
 
             String encodeUrl = URLEncoder.encode(city, StandardCharsets.UTF_8.name());
             modifiedWeatherUrl = baseUrl + encodeUrl;
         }
         catch(UnsupportedEncodingException ex){
-            ex.printStackTrace();
+            log.error("Encoding Error Encountered {}", ex.getMessage());
         }
 
         HttpClient httpClient = HttpClient.create()
@@ -46,12 +50,20 @@ public class OpenWeatherApiCall {
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .build();
 
-        WebClient.ResponseSpec responseSpec = client.get()
+        Mono<String> responseSpec = client.get()
                 .uri(modifiedWeatherUrl)
-                .retrieve();
+                .exchangeToMono(response -> {
+                    if (response.statusCode().equals(HttpStatus.OK)) {
+                        return response.bodyToMono(String.class);
+                    } else if (response.statusCode().is4xxClientError()) {
+                        return Mono.just("CITY NOT FOUND");
+                    } else {
+                        return response.createException().flatMap(Mono::error);
+                    }
+                });
 
-        String webResponse = responseSpec.bodyToMono(String.class).block();
-        log.info("web response {}", webResponse);
+        String webResponse = responseSpec.block();
+        log.info("open weather api web response {}", webResponse);
         return webResponse;
     }
 }
