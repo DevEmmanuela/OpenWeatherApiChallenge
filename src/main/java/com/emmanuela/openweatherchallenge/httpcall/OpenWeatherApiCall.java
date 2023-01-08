@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class OpenWeatherApiCall {
 
-    @Value("${application.http.callout.api.openweather.baseurl}")
+    @Value("${application.http.callout.api.openweather.baseurl.apikeys}")
     private String baseUrl;
     private String modifiedWeatherUrl;
 
